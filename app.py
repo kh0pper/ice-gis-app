@@ -41,6 +41,7 @@ CONFIG = {
 cache = {}
 
 location_map = {
+    # Specific cities (most reliable)
     "liberty": "Liberty, MO",
     "colony ridge": "Cleveland, TX",
     "houston": "Houston, TX",
@@ -55,16 +56,69 @@ location_map = {
     "hyattsville": "Hyattsville, MD",
     "new bedford": "New Bedford, MA",
     "apache junction": "Apache Junction, AZ",
-    "auburn ca": "Auburn, CA",
+    "auburn": "Auburn, CA",
     "san diego": "San Diego, CA",
     "los angeles": "Los Angeles, CA",
-    "la": "Los Angeles, CA",
     "san jose": "San Jose, CA",
     "san francisco": "San Francisco, CA",
-    "washington state": "Washington, WA",
-    "california": "California, CA",
-    "texas": "Texas, TX",
-    "missouri": "Missouri, MO"
+    # Major cities for ICE operations
+    "new york": "New York, NY",
+    "brooklyn": "Brooklyn, NY",
+    "queens": "Queens, NY",
+    "bronx": "Bronx, NY",
+    "manhattan": "Manhattan, NY",
+    "chicago": "Chicago, IL",
+    "philadelphia": "Philadelphia, PA",
+    "phoenix": "Phoenix, AZ",
+    "atlanta": "Atlanta, GA",
+    "miami": "Miami, FL",
+    "orlando": "Orlando, FL",
+    "tampa": "Tampa, FL",
+    "jacksonville": "Jacksonville, FL",
+    "las vegas": "Las Vegas, NV",
+    "seattle": "Seattle, WA",
+    "portland": "Portland, OR",
+    "baltimore": "Baltimore, MD",
+    "boston": "Boston, MA",
+    "detroit": "Detroit, MI",
+    "minneapolis": "Minneapolis, MN",
+    "kansas city": "Kansas City, MO",
+    "st. louis": "St. Louis, MO",
+    "oklahoma city": "Oklahoma City, OK",
+    "tulsa": "Tulsa, OK",
+    "nashville": "Nashville, TN",
+    "memphis": "Memphis, TN",
+    "charlotte": "Charlotte, NC",
+    "raleigh": "Raleigh, NC",
+    "richmond": "Richmond, VA",
+    "norfolk": "Norfolk, VA",
+    "salt lake city": "Salt Lake City, UT",
+    "albuquerque": "Albuquerque, NM",
+    "el paso": "El Paso, TX",
+    "san antonio": "San Antonio, TX",
+    "austin": "Austin, TX",
+    "fort worth": "Fort Worth, TX",
+    # Border areas
+    "mcallen": "McAllen, TX",
+    "brownsville": "Brownsville, TX",
+    "nogales": "Nogales, AZ",
+    "tucson": "Tucson, AZ",
+    "yuma": "Yuma, AZ",
+    "san ysidro": "San Ysidro, CA",
+    "calexico": "Calexico, CA",
+    # Short codes (less reliable, but common)
+    "la": "Los Angeles, CA",
+    "nyc": "New York, NY",
+    "dc": "Washington, D.C.",
+    # States (fallback)
+    "washington state": "Seattle, WA",
+    "california": "Los Angeles, CA",
+    "texas": "Houston, TX",
+    "florida": "Miami, FL",
+    "missouri": "Kansas City, MO",
+    "illinois": "Chicago, IL",
+    "new york state": "New York, NY",
+    "arizona": "Phoenix, AZ"
 }
 
 def fetch_article_content(url: str) -> str:
@@ -302,7 +356,7 @@ def geocode_location(location_name: str) -> list:
         return fallback_coords
 
 def extract_location_from_article(article_data: dict) -> str:
-    """Extract location from real article data using title, description, and content."""
+    """Extract location from real article data using improved parsing and prioritization."""
     title = article_data.get("title", "")
     description = article_data.get("description", "")
     content = article_data.get("content", "")
@@ -318,20 +372,88 @@ def extract_location_from_article(article_data: dict) -> str:
         fetched_content = fetch_article_content(url)
         all_text += f" {fetched_content}"
     
-    # Look for location keywords from our map first (most specific)
+    # Priority 1: Look for explicit location patterns in title first (most reliable)
+    title_lower = title.lower()
+    
+    # Look for "in [City]" or "at [City]" patterns in the title
+    import re
+    location_patterns = [
+        r'\b(?:in|at|near|from)\s+([A-Za-z][A-Za-z\s]+?)(?:,|\s+(?:raids?|arrests?|operations?|detention|enforcement|ICE|immigration))',
+        r'\b([A-Za-z][A-Za-z\s]+?)(?:,|\s+)(?:raids?|arrests?|operations?|detention|enforcement|ICE)',
+        r'\b([A-Za-z][A-Za-z\s]+?)\s+(?:ICE|immigration|enforcement|raids?|arrests?)'
+    ]
+    
+    for pattern in location_patterns:
+        matches = re.findall(pattern, title, re.IGNORECASE)
+        for match in matches:
+            location_candidate = match.strip().lower()
+            # Check if this matches any of our known locations
+            for key, full_location in location_map.items():
+                if key in location_candidate or location_candidate in key:
+                    logger.info(f"Found title location pattern: '{match}' -> {key}")
+                    return key
+                # Also check city names
+                city_name = full_location.split(',')[0].lower()
+                if city_name in location_candidate or location_candidate in city_name:
+                    if len(location_candidate) > 3:  # Avoid very short matches
+                        logger.info(f"Found title city match: '{match}' -> {key}")
+                        return key
+    
+    # Priority 2: Look for specific location context in full text
+    # Look for "City, State" patterns first (most reliable)
+    state_abbrevs = r'\b(AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY)\b'
+    city_state_pattern = rf'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*),\s*{state_abbrevs}'
+    
+    matches = re.findall(city_state_pattern, all_text.title())
+    for city, state in matches:
+        city_lower = city.lower()
+        state_lower = state.lower()
+        # Look for exact matches in our location map
+        for key, full_location in location_map.items():
+            full_lower = full_location.lower()
+            if city_lower in full_lower and state_lower in full_lower:
+                logger.info(f"Found City,State pattern: {city}, {state} -> {key}")
+                return key
+    
+    # Priority 3: Look for location keywords from our map (but be more selective)
+    # First pass: exact matches and longer location names (more reliable)
+    location_scores = []
     for key, full_location in location_map.items():
-        # Check if the key appears in the text
+        score = 0
+        
+        # Higher score for longer, more specific matches
         if key in all_text:
-            logger.info(f"Found location keyword '{key}' -> {full_location}")
-            return key
+            score += len(key) * 2  # Longer matches get higher priority
             
-        # Also check parts of the full location
+            # Bonus if found in title (more reliable)
+            if key in title_lower:
+                score += 10
+                
+            # Bonus for context words nearby
+            context_words = ['raids', 'arrests', 'operation', 'detention', 'enforcement', 'ice']
+            for word in context_words:
+                if word in all_text and abs(all_text.find(key) - all_text.find(word)) < 50:
+                    score += 2
+                    
+            location_scores.append((score, key, full_location))
+        
+        # Also check city names from full location
         location_parts = full_location.lower().split(", ")
         if len(location_parts) >= 1:
             city_name = location_parts[0]
-            if city_name in all_text and len(city_name) > 3:  # Avoid short matches
-                logger.info(f"Found city name '{city_name}' -> {full_location}")
-                return key
+            if city_name in all_text and len(city_name) > 4:  # Only longer city names
+                city_score = len(city_name)
+                if city_name in title_lower:
+                    city_score += 5
+                location_scores.append((city_score, key, full_location))
+    
+    # Return the highest scoring location
+    if location_scores:
+        location_scores.sort(key=lambda x: x[0], reverse=True)
+        best_score, best_key, best_location = location_scores[0]
+        if best_score > 3:  # Only return if we have reasonable confidence
+            logger.info(f"Found best location match: '{best_key}' -> {best_location} (score: {best_score})")
+            return best_key
     
     # Look for specific location patterns in the text
     import re
@@ -399,9 +521,31 @@ def extract_location_from_article(article_data: dict) -> str:
 
 def create_timeline_map() -> str:
     """Create an interactive map with timeline functionality using REAL articles only."""
-    # First, get ALL available real articles without date filtering
-    logger.info("Fetching all available real articles from NewsAPI")
-    all_news = scrape_news()  # No date filter to get all available articles
+    # Try different date ranges to find available articles
+    to_date = datetime.now().strftime('%Y-%m-%d')
+    
+    # First try: Last 30 days (most likely to have data)
+    from_date_30 = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+    logger.info(f"Trying last 30 days: {from_date_30} to {to_date}")
+    all_news = scrape_news(from_date_30, to_date)
+    
+    # If no articles in last 30 days, try last 60 days
+    if not all_news:
+        from_date_60 = (datetime.now() - timedelta(days=60)).strftime('%Y-%m-%d')
+        logger.info(f"Trying last 60 days: {from_date_60} to {to_date}")
+        all_news = scrape_news(from_date_60, to_date)
+    
+    # If still no articles, try inauguration date (may fail due to API limits)
+    if not all_news:
+        from_date_inauguration = CONFIG['TRUMP_INAUGURATION']  # 2025-01-20
+        logger.info(f"Trying from inauguration: {from_date_inauguration} to {to_date}")
+        all_news = scrape_news(from_date_inauguration, to_date)
+    
+    # If still no articles, try without date filter (get recent articles)
+    if not all_news:
+        logger.info("Trying without date filter to get any recent articles")
+        all_news = scrape_news()  # No date filter
+    
     logger.info(f"Retrieved {len(all_news)} total REAL articles")
     
     if not all_news:
@@ -827,7 +971,7 @@ if __name__ == '__main__':
     logger.info(f"Debug mode: {debug}")
     
     app.run(
-        host='127.0.0.1', 
+        host='0.0.0.0', 
         port=port,
         debug=debug,
         threaded=True
