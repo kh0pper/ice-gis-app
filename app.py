@@ -638,25 +638,35 @@ def create_timeline_html(articles: list) -> str:
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <style>
-        body {{ margin: 0; padding: 0; font-family: Arial, sans-serif; }}
-        #map {{ height: 85vh; width: 100%; }}
+        body {{ 
+            margin: 0; 
+            padding: 0; 
+            font-family: Arial, sans-serif; 
+            background-color: #1a1a1a;
+            color: #ffffff;
+        }}
+        #map {{ 
+            height: 85vh; 
+            width: 100%; 
+        }}
         
         .timeline-container {{
             position: fixed;
             bottom: 0;
             left: 0;
             right: 0;
-            background: rgba(255, 255, 255, 0.95);
+            background: rgba(30, 30, 30, 0.95);
             padding: 15px;
-            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.3);
             z-index: 1000;
+            border-top: 1px solid #444;
         }}
         
         .timeline-header {{
             text-align: center;
             margin-bottom: 10px;
             font-weight: bold;
-            color: #333;
+            color: #ffffff;
         }}
         
         .timeline-controls {{
@@ -670,7 +680,7 @@ def create_timeline_html(articles: list) -> str:
         .date-slider {{
             flex: 1;
             height: 6px;
-            background: #ddd;
+            background: #444;
             border-radius: 3px;
             outline: none;
             appearance: none;
@@ -680,31 +690,32 @@ def create_timeline_html(articles: list) -> str:
             appearance: none;
             width: 20px;
             height: 20px;
-            background: #e74c3c;
+            background: #ff6b6b;
             border-radius: 50%;
             cursor: pointer;
+            box-shadow: 0 0 0 2px #333;
         }}
         
         .date-slider::-moz-range-thumb {{
             width: 20px;
             height: 20px;
-            background: #e74c3c;
+            background: #ff6b6b;
             border-radius: 50%;
             cursor: pointer;
-            border: none;
+            border: 2px solid #333;
         }}
         
         .date-display {{
             min-width: 120px;
             text-align: center;
             font-weight: bold;
-            color: #e74c3c;
+            color: #ff6b6b;
         }}
         
         .article-count {{
             min-width: 100px;
             text-align: center;
-            color: #666;
+            color: #ccc;
             font-size: 0.9em;
         }}
         
@@ -715,24 +726,29 @@ def create_timeline_html(articles: list) -> str:
         
         .control-btn {{
             padding: 8px 12px;
-            background: #3498db;
+            background: #4a90e2;
             color: white;
-            border: none;
+            border: 1px solid #555;
             border-radius: 4px;
             cursor: pointer;
             font-size: 0.8em;
+            transition: all 0.3s ease;
         }}
         
         .control-btn:hover {{
-            background: #2980b9;
+            background: #357abd;
+            border-color: #666;
+            transform: translateY(-1px);
         }}
         
         .play-btn {{
-            background: #27ae60;
+            background: #2ecc71;
+            border-color: #27ae60;
         }}
         
         .play-btn:hover {{
-            background: #229954;
+            background: #27ae60;
+            border-color: #2ecc71;
         }}
     </style>
 </head>
@@ -766,8 +782,10 @@ def create_timeline_html(articles: list) -> str:
         // Initialize map
         const map = L.map('map').setView([39.8283, -98.5795], 4);
         
-        L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
-            attribution: '© OpenStreetMap contributors'
+        L.tileLayer('https://{{s}}.basemaps.cartocdn.com/dark_all/{{z}}/{{x}}/{{y}}{{r}}.png', {{
+            attribution: '© OpenStreetMap contributors, © CARTO',
+            subdomains: 'abcd',
+            maxZoom: 19
         }}).addTo(map);
         
         // Store markers
@@ -780,7 +798,7 @@ def create_timeline_html(articles: list) -> str:
         articles.forEach(article => {{
             const marker = L.marker(article.coords, {{
                 icon: L.icon({{
-                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-orange.png',
                     shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
                     iconSize: [25, 41],
                     iconAnchor: [12, 41],
@@ -790,11 +808,11 @@ def create_timeline_html(articles: list) -> str:
             }});
             
             const popupContent = `
-                <div style="width: 300px;">
-                    <h4 style="margin-bottom: 10px;">${{article.title}}</h4>
-                    <p><strong>Date:</strong> ${{article.date}}</p>
-                    <p><strong>Location:</strong> ${{article.location_name}}</p>
-                    <a href="${{article.url}}" target="_blank" style="color: #0066cc;">Read Full Article</a>
+                <div style="width: 300px; background-color: #2a2a2a; color: #ffffff; padding: 15px; border-radius: 8px;">
+                    <h4 style="margin-bottom: 10px; color: #ff6b6b;">${{article.title}}</h4>
+                    <p style="margin: 8px 0;"><strong>Date:</strong> ${{article.date}}</p>
+                    <p style="margin: 8px 0;"><strong>Location:</strong> ${{article.location_name}}</p>
+                    <a href="${{article.url}}" target="_blank" style="color: #4a90e2; text-decoration: none; font-weight: bold;">Read Full Article →</a>
                 </div>
             `;
             
